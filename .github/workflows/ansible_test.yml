@@ -1,0 +1,37 @@
+name: Ansible Load Balancer Test
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  ansible-test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Ansible Playbook
+      run: |
+       
+        cat << 'EOF' > check_lb.yml
+        ---
+        - name: Проверка циклической балансировки AWS
+          hosts: localhost
+          gather_facts: false
+          tasks:
+            - name: Отправляем 6 последовательных запросов к балансировщику
+              ansible.builtin.uri:
+                url: "http://my-web-lb-1369614311.eu-north-1.elb.amazonaws.com"
+                return_content: true
+              loop: "{{ range(1, 7) | list }}"
+              register: lb_responses
+
+            - name: Выводим IP-адрес каждого ответа
+              ansible.builtin.debug:
+                msg: "Запрос №{{ item.0 + 1 }} обработан сервером Nginx с IP: {{ item.1.content | trim }}"
+              loop: "{{ lb_responses.results | zip(lb_responses.results) | list }}"
+        EOF
+        
+
+        ansible-playbook check_lb.yml
